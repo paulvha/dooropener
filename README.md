@@ -17,6 +17,12 @@ together.  The project looked interesting me, also I had all the components,
 except a door opener, and had couple of hours on my hand. I have extended
 the code with more functions and this document is the write up of the small project.
 
+<br>Please be aware that I have NOT written much of the code. It is coming from different sources
+from Internet, developed by others. I do not know who or where the real sources are coming
+from. Hence I do not claim copyright or apply a license.
+This is grapware… for you to play around and enjoy.
+No Support, no warranty, no obligations. Just source code as-is !
+
 ## Prerequisites
 Depending the exact sourced hardware components
 ### Keypad
@@ -48,5 +54,5 @@ Please see the description in the top of the sketch and read the documentation (
  * Paul van Haastrecht (paulvha@hotmail.com)
 
 ## License
-This project is licensed under the GNU GENERAL PUBLIC LICENSE 3.0
+No License
 
