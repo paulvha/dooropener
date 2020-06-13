@@ -1,4 +1,10 @@
 /*
+ * ============================================================================
+ * 
+ * Open the door with a password and/or NFC card.
+ * 
+ * ===========================================================================
+ * 
  * HARDWARE Connection on UNO
  *
  * LCD UNO
@@ -25,8 +31,9 @@
  * 
  * pin 6 of the UNO (defined by DOORPIN)
  * 
+ * =====================================================================================
  * USAGE
- * 
+ * =====================================================================================
  * If this is the first time the program ever runs on this board, you need to clear the EEPROM count, as we 
  * do NOT know what is currently in the length location. Enter the InitPromCode (defined below) on the 
  * keypad to set the length to zero. 
@@ -42,19 +49,22 @@
  * If you set TRIGGERMOMENT to BOTH. you can only open the door with BOTH a valid NFC card AND 
  * valid access password AccessCode (defined below). 
  * 
+ * You can toggle between BOTH and EITHER without recompile. Enter the TogglePswCode (defined below) 
+ * and if the TRIGGERMOMENT was BOTH it will become EITHER and the other way around.
+ * 
  * The access password AccessCode (defined below) can be entered from remote over the serial port to 
  * open the door as well.
  * 
- * A new entry access code can be set by entering the ChangePswCode (defined below). you will be 
- * prompted to enter a new access password from the keypad. 
+ * A new entry access code can be changed without recompile by entering the ChangePswCode (defined below). 
+ * you will be prompted to enter a new access password from the keypad. 
  * You get 5 seconds to start entering the new password.
  * If that password is already use, the operation will cancel. Else you will be asked to enter '#' 
  * to confirm the new password
  * 
  * By setting #define DEBUG 0 to 1 you will get debug messages on your serial line.
- * 
+ * ==============================================================================================
  * Extra libraries needed :
- * 
+ * ==============================================================================================
  * https://github.com/Chris--A/Keypad
  * http://playground.arduino.cc/Code/Keypad 
  * 
@@ -66,16 +76,19 @@
  * https://github.com/miguelbalboa/rfid
  * 
  * 
- * Version 1.0 / June 2020
+ * Version 1.0.1 / June 2020
  * 
- * No Support, No warranty, delivered as-is to play around wiht it, enjoy !!!
+ * Please be aware that I have NOT written much of the code. It is coming from different sources 
+ * from Internet, developed by others. I do not know who or where the real sources are coming 
+ * from. Hence I do not claim copyright or apply a license. 
+ * This is grapware… for you to play around and enjoy. 
+ * No Support, no warranty, no obligations. Just source code as-is !
  * 
  */
  
 //=======================================================================
 // SEE THE DOCUMENT IN THE SAME FOLDER AS THE SKETCH FOR MORE INFORMATION
 //=======================================================================
-
 
 #include <EEPROM.h>
 #include <SPI.h>
@@ -85,12 +98,14 @@
 #include <Keypad.h>
 
 //=================================================================
-// passwords (8 digits)
+// passwords 
+// can be any length (e.g. 4, 6 or 8 digits) BUT all must have the SAME length
 //================================================================
 String AccessCode="*123456#";    // entry access code 
 String PairingCode="*654321#";   // pairing access code
 String InitPromCode="##6655**";  // set EEPROM location to zero
-String ChangePswCode="*9*9*57#"; // allow change for entry access code
+String ChangePswCode="*9*9*57#"; // use to change for entry access code
+String TogglePswCode="*#9*8*77"; // used to toggle between EITHER or BOTH door opening function
 
 //=================================================================
 // dooropening parameters
@@ -100,13 +115,13 @@ String ChangePswCode="*9*9*57#"; // allow change for entry access code
 //  BOTH to open the door with BOTH valid NFC AND valid password from keypad
 #define EITHER  1            
 #define BOTH    2
-#define TRIGGERMOMENT  BOTH
+int TRIGGERMOMENT = BOTH;
 
 // Dooropener connection
 #define DOORPIN 6
 
 // Dooropener time (mS)
-# define DOOR_OPEN_TIME 5000
+# define DOOR_OPEN_TIME 2000
 
 //=================================================================
 // NFC parameters
@@ -161,7 +176,7 @@ MFRC522::MIFARE_Key key;
 //lcd
 LiquidCrystal_I2C  lcd(0x27,16,2);
 
-//initializes an instance of the Keypad class
+//initialize an instance of the Keypad class
 Keypad myKeypad= Keypad(makeKeymap(keymap), rowPins, colPins, numRows, numCols);
 
 //==============================================
@@ -219,7 +234,6 @@ void  ExtractNFC(){
     Serial.print(" ");
     Serial.println(CODE[3],HEX);
   }
-
 }
 
 //==============================================
@@ -260,7 +274,7 @@ void pairNFC() {
     }
   }
 
-  // when get here, CODE is NOT already in system    
+  // when we get here, CODE is NOT already in system    
   // get current last postion in EEPROM 
   int ttt=EEPROM.read(0);
 
@@ -298,7 +312,7 @@ void pairNFC() {
 }
 
 //==============================================
-// reset EEPROM buffer (as we do not know what is in EEPROM count if we start from scratch)
+// reset EEPROM length (as we do not know what is in EEPROM count if we start from scratch)
 //=============================================
 void InitProm()
 {
@@ -345,6 +359,7 @@ int ComparePswd(String a) {
   else if(a.equals(PairingCode)) return 2;
   else if(a.equals(InitPromCode)) return 3;
   else if(a.equals(ChangePswCode)) return 4;
+  else if(a.equals(TogglePswCode)) return 5;
   else return 0;
 }
 
@@ -353,6 +368,7 @@ int ComparePswd(String a) {
 //=============================================
 String GetKeyPad(char x, boolean show) {
   char vec[10];
+  int i;
 
   vec[0]=x;
   
@@ -367,10 +383,10 @@ String GetKeyPad(char x, boolean show) {
   if(show) lcd.print(x);      // show real digit or 'X'
   else lcd.print('X');    
     
-  for(int i=1; i<8; i++) {    // get complete code
+  for(i=1; i<PairingCode.length(); i++) {    // get complete code
     lcd.setCursor(0,1);
     lcd.print("Need ");
-    lcd.print(8-i);
+    lcd.print(PairingCode.length()-i);
     lcd.print(" digits");
 
     vec[i]=myKeypad.waitForKey();
@@ -385,7 +401,7 @@ String GetKeyPad(char x, boolean show) {
     else lcd.print('X');    
   }
 
-  vec[8]=NULL;
+  vec[PairingCode.length()]=0x0;
   String str(vec);
   return str;
 }
@@ -472,6 +488,26 @@ void SetNewPswd()
   blocked(2000);
 }
 
+//==============================================
+// Toggle between EITHER or BOTH door opening
+//=============================================
+void ToggleOpening()
+{
+  lcd.clear();
+  lcd.setCursor(0,0);
+  lcd.print(F("Door Triggers"));
+  lcd.setCursor(0,1);
+  if (TRIGGERMOMENT == EITHER) {
+    lcd.print(F("now on BOTH"));
+    TRIGGERMOMENT = BOTH;
+  }
+  else {
+    lcd.print(F("now on EITHER"));
+    TRIGGERMOMENT = EITHER;
+  }
+  
+  blocked(2000);
+}
 //==============================================
 // Main_loop
 //=============================================
@@ -589,7 +625,11 @@ void loop() {
           else if (A == 4) {
             SetNewPswd();
           }
-          
+
+          // Toggle between EITHER or BOTH
+          else if (A == 5) {
+            ToggleOpening();
+          }
        } // keypad check
        break;
      }

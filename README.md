@@ -50,6 +50,9 @@ Please see the description in the top of the sketch and read the documentation (
 ### version 1.0 / June 2020
  * Initial version Arduino
 
+### version 1.0.1 / June 2020
+ * included toggle EITHER/BOTH password option
+
 ## CO-Author
  * Paul van Haastrecht (paulvha@hotmail.com)
 
