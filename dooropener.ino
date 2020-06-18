@@ -76,7 +76,8 @@
  * https://github.com/miguelbalboa/rfid
  * 
  * 
- * Version 1.0.1 / June 2020
+ * Version 1.0.2 / June 2020
+ * - remove multiple PCD_Init()
  * 
  * Please be aware that I have NOT written much of the code. It is coming from different sources 
  * from Internet, developed by others. I do not know who or where the real sources are coming 
@@ -537,8 +538,7 @@ void loop() {
     // read and validate NFC or Keypad
     case 0:
      {
-       mfrc522.PCD_Init();
-       // check for NFC card
+         // check for NFC card
        if ( mfrc522.PICC_IsNewCardPresent() && mfrc522.PICC_ReadCardSerial() ){
 
          // extract CODE
@@ -643,7 +643,7 @@ void loop() {
      
     // perform pairing
     case 2:
-        mfrc522.PCD_Init();
+        //mfrc522.PCD_Init();
         
         lcd.setCursor(0,1);
         lcd.print(F("Need card"));
