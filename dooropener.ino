@@ -13,19 +13,26 @@
  * VCC  5v
  * GND  GND
  * 
+ * 
  * MFC 522
  *            UNO              MFC522
- * Reset      9                RST
  * SPI SS     10               SDA
+ * SPI SCK    13               SCK
  * SPI MOSI   11               MOSI
  * SPI MISO   12               MISO
- * SPI SCK    13               SCK
+ * IRQ                         IRQ
  * GND        GND              GND
- * 
- * KEYPAD
- * 
+ * Reset      9                RST
+ * 3V3        3v3              3v3
+ *
+ *
+ * KEYPAD 4 x 3
  * ROW = {5, A0, 7, 8};      // Rows 0 to 4
- * Columns = {2, 3, 4};      // Columns 0 to 3
+ * COLUMNs= {2, 3, 4};       // Columns 0 to 3
+ * 
+ * KEYPAD 4 x 4
+ * ROWs {5, A0, 7, 8};       // Rows 0 to 4
+ * COLUMNs = {2, 3, 4, A1};  // Columns 0 to 4
  * 
  * Dooropener activator
  * 
@@ -43,14 +50,14 @@
  * You first need to pair a NFC card in the system. Enter the PairingCode (defined below) and 
  * then hold the card for the reader.
  * 
- * If you set TRIGGERMOMENT to EITHER. you can open the door with EITHER a valid NFC card or 
+ * If you set TriggerMoment to EITHER. you can open the door with EITHER a valid NFC card or 
  * valid access password AccessCode (defined below). 
  * 
- * If you set TRIGGERMOMENT to BOTH. you can only open the door with BOTH a valid NFC card AND 
+ * If you set TriggerMoment to BOTH. you can only open the door with BOTH a valid NFC card AND 
  * valid access password AccessCode (defined below). 
  * 
  * You can toggle between BOTH and EITHER without recompile. Enter the TogglePswCode (defined below) 
- * and if the TRIGGERMOMENT was BOTH it will become EITHER and the other way around.
+ * and if the TriggerMoment was BOTH it will become EITHER and the other way around.
  * 
  * The access password AccessCode (defined below) can be entered from remote over the serial port to 
  * open the door as well.
@@ -62,6 +69,8 @@
  * to confirm the new password
  * 
  * By setting #define DEBUG 0 to 1 you will get debug messages on your serial line.
+ * 
+ * 
  * ==============================================================================================
  * Extra libraries needed :
  * ==============================================================================================
@@ -79,6 +88,11 @@
  * Version 1.0.2 / June 2020
  * - remove multiple PCD_Init()
  * 
+ * Version 1.1.0 / June 2020
+ *  - added storing new entry passwrd in EEPROM
+ *  - added storing BOTH/ EITHER in EEPROM
+ *  - KEYPAD 4 X 4 setting
+ *  
  * Please be aware that I have NOT written much of the code. It is coming from different sources 
  * from Internet, developed by others. I do not know who or where the real sources are coming 
  * from. Hence I do not claim copyright or apply a license. 
@@ -100,7 +114,7 @@
 
 //=================================================================
 // passwords 
-// can be any length (e.g. 4, 6 or 8 digits) BUT all must have the SAME length
+// can be a maximum length of 10 digits BUT all MUST have the SAME length
 //================================================================
 String AccessCode="*123456#";    // entry access code 
 String PairingCode="*654321#";   // pairing access code
@@ -111,12 +125,12 @@ String TogglePswCode="*#9*8*77"; // used to toggle between EITHER or BOTH door o
 //=================================================================
 // dooropening parameters
 //================================================================
-// set TRIGGERMOMENT to 
+// set TriggerMoment to 
 //  EITHER to open the door with EITHER valid NFC OR valid password from keypad
 //  BOTH to open the door with BOTH valid NFC AND valid password from keypad
 #define EITHER  1            
 #define BOTH    2
-int TRIGGERMOMENT = BOTH;
+int TriggerMoment = BOTH;
 
 // Dooropener connection
 #define DOORPIN 6
@@ -133,7 +147,15 @@ int TRIGGERMOMENT = BOTH;
 
 //=================================================================
 // KEYPAD parameters
+// select your keypad below EITHER 4 x 3 or 4 x 4 switches
 //================================================================
+
+//#define KEYPAD4x3 
+#define KEYPAD4x4
+
+
+#ifdef KEYPAD4x3        // if keypad is  4 x 3
+
 #define numRows 4      // number of rows on the keypad
 #define numCols 3      // number of columns on the keypad
 
@@ -148,10 +170,31 @@ char keymap[numRows][numCols]= {
 byte rowPins[numRows] = {5, A0, 7, 8}; // Rows 0 to 4
 byte colPins[numCols] = {2, 3, 4};     // Columns 0 to 3
 
+#elif defined(KEYPAD4x4)        // if pad is 4 x 4 
+
+#define numRows 4      // number of rows on the keypad
+#define numCols 4      // number of columns on the keypad
+
+//keymap defines the key pressed according to the row and columns just as appears on the keypad
+char keymap[numRows][numCols]= {
+{'1', '2', '3', 'A'},
+{'4', '5', '6', 'B'},
+{'7', '8', '9', 'C'},
+{'*', '0', '#', 'D'}};
+
+//Code that shows  the keypad connections to the arduino terminals
+
+byte rowPins[numRows] = {5, A0, 7, 8};      // Rows 0 to 4
+byte colPins[numCols] = {2, 3, 4, A1};      // Columns 0 to 4
+
+#else
+#error "Please select one of the keypads."
+#endif
+
 //=================================================================
 // DEBUG parameter (set to 1 for debug serial messages)
 //================================================================
-#define DEBUG 0
+#define DEBUG 1
 
 /////////////////////////////////////////////////////////
 // NO CHANGES NEEDED BEYOND THIS POINT                 //
@@ -184,7 +227,7 @@ Keypad myKeypad= Keypad(makeKeymap(keymap), rowPins, colPins, numRows, numCols);
 // Start of program
 //=============================================
 void setup() {
-
+  
   pinMode(DOORPIN,OUTPUT);            // door opener
   digitalWrite(DOORPIN,LOW);
   
@@ -203,6 +246,36 @@ void setup() {
   lcd.init();
   lcd.backlight();
   blocked(0);
+
+  // check for overwrite password or security level
+  OverWriteCheck();
+
+  
+  // check passwords length
+  if (Validate_passwrds() < 0){
+    if (DEBUG == 1){
+       Serial.println(F("Passwords are NOT same length or longer than 10 characters"));
+    }
+    
+    //freeze
+    for(;;);
+  }
+}
+
+//=======================================================
+// Check on password length max 10 and all the same length
+//=======================================================
+int Validate_passwrds()
+{
+  byte a = AccessCode.length();
+  if ( a > 10) return(-1);    //access code > is to long
+
+  if (PairingCode.length() != a) return(-1);  // if NOT same length
+  if (InitPromCode.length() != a) return(-1);
+  if (ChangePswCode.length() != a) return(-1);
+  if (TogglePswCode.length() != a) return(-1);
+
+  return(0);
 }
 
 //==============================================
@@ -288,10 +361,10 @@ void pairNFC() {
   }
  
   // write to EEPROM
-  EEPROM.write(ttt+1,CODE[0]);
-  EEPROM.write(ttt+2,CODE[1]);
-  EEPROM.write(ttt+3,CODE[2]);
-  EEPROM.write(ttt+4,CODE[3]);
+  EEPROM.write(ttt+16+1,CODE[0]);
+  EEPROM.write(ttt+16+2,CODE[1]);
+  EEPROM.write(ttt+16+3,CODE[2]);
+  EEPROM.write(ttt+16+4,CODE[3]);
 
   // save new length
   ttt=ttt+4;
@@ -313,7 +386,13 @@ void pairNFC() {
 }
 
 //==============================================
-// reset EEPROM length (as we do not know what is in EEPROM count if we start from scratch)
+// reset EEPROM (as we do not know what is in EEPROM count if we start from scratch)
+// EEPROM layout
+// address 0        length of NFC bytes stored
+// address 1 - 12d  overwrite password (max length is 10 + zero)
+// address 14d      overwrite BOTH or EITHER
+// address 15d      RFU
+// address 16d      start of NFC bytes store
 //=============================================
 void InitProm()
 {
@@ -324,7 +403,60 @@ void InitProm()
   // reset length
   EEPROM.write(0,0);
 
+  // reset passwd
+  for (byte x = 1; x < 13; x++) EEPROM.write(x,0);
+
+  // reset Either or BOTH security level
+  EEPROM.write(14,0);
+  
   blocked(2000);
+}
+
+//==============================================
+// Check overwrite of access password and security level
+// These values can be changed with a special password while active. If someone had applied change and
+// there was a power failure, you want to use the changed password / security level are reboot.
+//
+// EEPROM layout
+// address 0        length of NFC bytes stored (starting address 16d)
+// address 1 - 13d  overwrite password (max length is 12)
+// address 14d      overwrite BOTH or EITHER
+// address 15d      RFU
+// address 16d      start of NFC bytes store
+//=============================================
+
+void OverWriteCheck()
+{
+  char NewPswd[13];
+  byte i;
+  
+  // if new entry passwd was entered
+  if (EEPROM.read(1)!= 0){
+    i = 0;
+    do {
+      NewPswd[i++] = EEPROM.read(i+1);
+    } while( NewPswd[i -1] != 0x0 && i < 10);
+
+    NewPswd[i] = 0x0;
+    String str(NewPswd);
+    AccessCode = str;
+
+    if(DEBUG == 1){
+      Serial.print("Password read from EEPROM: ");
+      Serial.println(AccessCode);
+    }
+  }
+
+  // changed security
+  if (EEPROM.read(14)!= 0){
+    TriggerMoment = EEPROM.read(14);
+
+    if(DEBUG == 1){
+      Serial.print("Security level read from EEPROM: ");
+      if(TriggerMoment == BOTH) Serial.println("BOTH");
+      else Serial.println("EITHER");
+    }
+  }
 }
 
 //==============================================
@@ -333,7 +465,7 @@ void InitProm()
 boolean validateNFC(){
 
    // read complete EEPROM for match
-   for(int i=1; i<=EEPROM.read(0); i++) {
+   for(int i=16; i<=16 + EEPROM.read(0); i++) {
 
     switch(i%4){
       case 1 :{AUX[0]=EEPROM.read(i); break;}
@@ -457,6 +589,17 @@ void SetNewPswd()
           return;
        }
 
+       // check for maximum length
+       byte j = AccessCode.length();
+
+       if (j > 10){
+          lcd.clear();
+          lcd.setCursor(0,0);
+          lcd.print(F("Password too LONG")); 
+          blocked(2000);
+          return;           
+       }
+       
        // confirm new password
        lcd.setCursor(0,1);
        lcd.print(F("Press # to use"));         
@@ -467,7 +610,11 @@ void SetNewPswd()
 
        // update the password
        if(c == '#') {
+          
           AccessCode = CodeCurrent;
+          
+          // store EEPROM (start address EEPROM 1)
+          for (byte x = 0; x < j; x++) EEPROM.write(x+1,AccessCode[x]);
           
           if(DEBUG == 1) {
             Serial.print(F("New Access password"));
@@ -498,14 +645,16 @@ void ToggleOpening()
   lcd.setCursor(0,0);
   lcd.print(F("Door Triggers"));
   lcd.setCursor(0,1);
-  if (TRIGGERMOMENT == EITHER) {
+  if (TriggerMoment == EITHER) {
     lcd.print(F("now on BOTH"));
-    TRIGGERMOMENT = BOTH;
+    TriggerMoment = BOTH;
   }
   else {
     lcd.print(F("now on EITHER"));
-    TRIGGERMOMENT = EITHER;
+    TriggerMoment = EITHER;
   }
+  // store in EEPROM (address 14)
+  EEPROM.write(14,TriggerMoment);
   
   blocked(2000);
 }
@@ -551,7 +700,7 @@ void loop() {
             lcd.setCursor(0,0);
             lcd.print(F("VALID NFC CODE"));
             
-            if (TRIGGERMOMENT == EITHER)  stare = 1;     // open the door in the next loop
+            if (TriggerMoment == EITHER)  stare = 1;     // open the door in the next loop
             else if (OpenDoorState == 2)  stare = 1;     // if password was also detected now open the door
             else {
               OpenDoorState = 1;                         // indicate the card was detected
@@ -596,7 +745,7 @@ void loop() {
             lcd.clear();
             lcd.print(F("VALID CODE"));
 
-            if (TRIGGERMOMENT == EITHER)  stare = 1;    // open the door in the next loop
+            if (TriggerMoment == EITHER)  stare = 1;    // open the door in the next loop
             else if (OpenDoorState == 1)  stare = 1;    // if NFC was also detected open the door
             else {
               OpenDoorState = 2;                        // indicate the Passwd was detected

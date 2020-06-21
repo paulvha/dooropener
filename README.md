@@ -1,4 +1,4 @@
-# Door opener
+# Door-opener
 
 ## ===========================================================
 
@@ -21,10 +21,11 @@ the code with more functions and this document is the write up of the small proj
 from Internet, developed by others. I do not know who or where the real sources are coming
 from. Hence I do not claim copyright or apply a license.
 This is grapware… for you to play around and enjoy.
-No Support, no warranty, no obligations. Just source code as-is !
+<br>No Support, no warranty, no obligations. Just source code as-is !
 
 ## Prerequisites
 Depending the exact sourced hardware components
+
 ### Keypad
  https://github.com/Chris--A/Keypad
  <br>info : http://playground.arduino.cc/Code/Keypad
@@ -51,10 +52,15 @@ Please see the description in the top of the sketch and read the documentation (
  * Initial version Arduino
 
 ### version 1.0.1 / June 2020
- * included toggle EITHER/BOTH password option
+ * Included toggle EITHER/BOTH password option
 
 ### version 1.0.2 / June 2020
  * remove multiple PcdInit
+
+### Version 1.1.0 / June 2020
+ * added storing new access passwrd in EEPROM when changed with special passwrd.
+ * added storing EITHER/BOTH in EEPROM when changed with special passwrd.
+ * added keypad selection KEYPAD 4x3 OR 4x4 setting
 
 ## CO-Author
  * Paul van Haastrecht (paulvha@hotmail.com)
