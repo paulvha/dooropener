@@ -145,6 +145,7 @@ int TriggerMoment = BOTH;
 #define SS_PIN    10        // Configurable, see doc
 #define MAXPOSTEEPROM 1000  // Maximum size EEPROM in bytes
 
+
 //=================================================================
 // KEYPAD parameters
 // select your keypad below EITHER 4 x 3 or 4 x 4 switches
@@ -153,7 +154,7 @@ int TriggerMoment = BOTH;
 //#define KEYPAD4x3 
 #define KEYPAD4x4
 
-
+//============================= 4 x 3 keypad ==============================
 #ifdef KEYPAD4x3        // if keypad is  4 x 3
 
 #define numRows 4      // number of rows on the keypad
@@ -170,6 +171,7 @@ char keymap[numRows][numCols]= {
 byte rowPins[numRows] = {5, A0, 7, 8}; // Rows 0 to 4
 byte colPins[numCols] = {2, 3, 4};     // Columns 0 to 3
 
+//============================= 4 x 4 keypad ==============================
 #elif defined(KEYPAD4x4)        // if pad is 4 x 4 
 
 #define numRows 4      // number of rows on the keypad
@@ -183,7 +185,6 @@ char keymap[numRows][numCols]= {
 {'*', '0', '#', 'D'}};
 
 //Code that shows  the keypad connections to the arduino terminals
-
 byte rowPins[numRows] = {5, A0, 7, 8};      // Rows 0 to 4
 byte colPins[numCols] = {2, 3, 4, A1};      // Columns 0 to 4
 
@@ -194,7 +195,7 @@ byte colPins[numCols] = {2, 3, 4, A1};      // Columns 0 to 4
 //=================================================================
 // DEBUG parameter (set to 1 for debug serial messages)
 //================================================================
-#define DEBUG 1
+#define DEBUG 0
 
 /////////////////////////////////////////////////////////
 // NO CHANGES NEEDED BEYOND THIS POINT                 //
@@ -205,7 +206,7 @@ byte colPins[numCols] = {2, 3, 4, A1};      // Columns 0 to 4
 //=============================================
 
 int OpenDoorState=0;   // needed to track for BOTH NFC and keypad
-int state_bt=0;        // Serial input state
+int state_bt=0;        // Serial input state / e.g. bleutooth
 int stare=0;           // machine state for NFC / keypad
 byte CODE[10];         // store the NFC code
 byte AUX[10];          // used for compare NFC code
@@ -249,7 +250,6 @@ void setup() {
 
   // check for overwrite password or security level
   OverWriteCheck();
-
   
   // check passwords length
   if (Validate_passwrds() < 0){
@@ -353,7 +353,7 @@ void pairNFC() {
   int ttt=EEPROM.read(0);
 
   // check on Maximum size EEPROM
-  if (ttt + 4 > MAXPOSTEEPROM){
+  if (ttt + 4 + 16 > MAXPOSTEEPROM){
     lcd.clear();
     lcd.setCursor(0,0);
     lcd.print(F("EEPROM IS FULL"));
@@ -552,6 +552,12 @@ void open_door()
   delay(DOOR_OPEN_TIME);
   digitalWrite(DOORPIN,LOW);
 
+  // in case the MFRC is unresponsive after an unlock
+  // e.g. pulse on power supply, include the code below
+  delay(500);           // wait 500mS for stabilize power (you can make this longer)
+  mfrc522.PCD_Init();   // Init MFRC522 card
+
+  // reset LCD
   blocked(0);
 }
 
@@ -792,7 +798,6 @@ void loop() {
      
     // perform pairing
     case 2:
-        //mfrc522.PCD_Init();
         
         lcd.setCursor(0,1);
         lcd.print(F("Need card"));
